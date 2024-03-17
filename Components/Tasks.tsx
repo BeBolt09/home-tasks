@@ -15,48 +15,46 @@ const Tasks = () => {
   const [time, setTime] = useState("");
   const [groupMembers, setGroupMembers] = useState<{ uuid: string, name: string }[]>([]); // State to store group members with UUIDs and names
 
-  useEffect(() => {
-    const fetchGroupName = async () => {
-      if (currentUserId) {
-        const userSnap = await getDoc(doc(FIREBASE_DB, 'users', currentUserId));
-        const userData = userSnap.data();
-        setGroupName(userData?.groupName[0]);
-      }
-    };
-    fetchGroupName();
+  const fetchGroupName = async () => {
+    if (currentUserId) {
+      const userSnap = await getDoc(doc(FIREBASE_DB, 'users', currentUserId));
+      const userData = userSnap.data();
+      setGroupName(userData?.groupName[0]);
+    }
+  };
 
-    const fetchGroupMembers = async () => {
-      if (groupName) {
-        try {
-          const groupRef = doc(FIREBASE_DB, "groups", groupName);
-          const groupSnapshot = await getDoc(groupRef);
-          if (groupSnapshot.exists()) {
-            const groupData = groupSnapshot.data();
-            const memberUids = groupData.members || [];
-            const membersPromises = memberUids.map(async (uuid: string) => {
-              const userSnap = await getDoc(doc(FIREBASE_DB, 'users', uuid));
-              const userData = userSnap.data();
-              return { uuid, name: userData?.name || 'Unknown User' };
-            });
-            const members = await Promise.all(membersPromises);
-            setGroupMembers(members);
-          } else {
-            console.error(`Group ${groupName} does not exist`);
-          }
-        } catch (error) {
-          console.error("Error fetching group members:", error);
+  const fetchGroupMembers = async () => {
+    if (groupName) {
+      try {
+        const groupRef = doc(FIREBASE_DB, "groups", groupName);
+        const groupSnapshot = await getDoc(groupRef);
+        if (groupSnapshot.exists()) {
+          const groupData = groupSnapshot.data();
+          const memberUids = groupData.members || [];
+          const membersPromises = memberUids.map(async (uuid: string) => {
+            const userSnap = await getDoc(doc(FIREBASE_DB, 'users', uuid));
+            const userData = userSnap.data();
+            return { uuid, name: userData?.name || 'Unknown User' };
+          });
+          const members = await Promise.all(membersPromises);
+          setGroupMembers(members);
+        } else {
+          console.error(`Group ${groupName} does not exist`);
         }
+      } catch (error) {
+        console.error("Error fetching group members:", error);
       }
-    };
-       
+    }
+  };
+
+  useEffect(() => {
+    fetchGroupName();
     fetchGroupMembers();
 
     const fetchTasks = async () => {
       if (groupName) {
         const tasksSnapshot = await getDocs(collection(FIREBASE_DB, "groups", groupName, "tasks"));
         const tasksData = tasksSnapshot.docs.map(doc => doc.data());
-
-        // Group tasks by assignee ID
         const groupedTasks = tasksData.reduce((acc, task) => {
           if (!acc[task.assignee]) {
             acc[task.assignee] = [];
@@ -64,18 +62,13 @@ const Tasks = () => {
           acc[task.assignee].push(task);
           return acc;
         }, {});
+        if (currentUserId){
+          const currentUserTasks = groupedTasks[currentUserId];
+          const otherTasks = Object.entries(groupedTasks)
+            .filter(([assigneeId]) => assigneeId !== currentUserId)
+            .map(([assigneeId, tasks]) => ({ assignee: assigneeId, tasks }));
+          const updatedTasksData = currentUserTasks ? [{ assignee: currentUserId, tasks: currentUserTasks }, ...otherTasks] : otherTasks;
 
-        // Reorder tasks array to display tasks assigned to the current user first
-        if (currentUserId && assignee){
-
-        
-        const currentUserTasks = groupedTasks[currentUserId];
-        const otherTasks = Object.entries(groupedTasks)
-          .filter(([assigneeId]) => assigneeId !== currentUserId)
-          .map(([assigneeId, tasks]) => ({ assignee: assigneeId, tasks }));
-        const updatedTasksData = currentUserTasks ? [{ assignee: currentUserId, tasks: currentUserTasks }, ...otherTasks] : otherTasks;
-
-        // Replace assignee IDs with user names
         const updatedTasksWithName = await Promise.all(updatedTasksData.map(async ({ assignee, tasks }) => {
           const userSnap = await getDoc(doc(FIREBASE_DB, 'users', assignee));
           const userData = userSnap.data();
