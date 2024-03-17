@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Button, FlatList, Modal, TouchableOpacity, StyleSheet } from 'react-native';
-import { doc, getDoc, getDocs, collection, serverTimestamp, addDoc } from "firebase/firestore";
+import { doc, getDoc, getDocs, collection, serverTimestamp, addDoc, onSnapshot } from "firebase/firestore";
 import { FIREBASE_DB } from '../FirebaseConfig';
 import { getAuth } from 'firebase/auth';
-import {Picker} from '@react-native-picker/picker';
+import ModalDropdown from 'react-native-modal-dropdown'; 
 
 const Tasks = () => {
   const currentUserId = getAuth().currentUser?.uid;
@@ -13,9 +13,7 @@ const Tasks = () => {
   const [taskContent, setTaskContent] = useState("");
   const [assignee, setAssignee] = useState(""); // Assignee UID
   const [time, setTime] = useState("");
-  const [groupMembers, setGroupMembers] = useState<string[]>([]); // State to store group members' UIDs
-  const [selectedLanguage, setSelectedLanguage] = useState();
-
+  const [groupMembers, setGroupMembers] = useState<{ uuid: string, name: string }[]>([]); // State to store group members with UUIDs and names
 
   useEffect(() => {
     const fetchGroupName = async () => {
@@ -26,7 +24,6 @@ const Tasks = () => {
       }
     };
     fetchGroupName();
-    console.log(groupName)
 
     const fetchGroupMembers = async () => {
       if (groupName) {
@@ -36,7 +33,13 @@ const Tasks = () => {
           if (groupSnapshot.exists()) {
             const groupData = groupSnapshot.data();
             const memberUids = groupData.members || [];
-            setGroupMembers(memberUids);
+            const membersPromises = memberUids.map(async (uuid: string) => {
+              const userSnap = await getDoc(doc(FIREBASE_DB, 'users', uuid));
+              const userData = userSnap.data();
+              return { uuid, name: userData?.name || 'Unknown User' };
+            });
+            const members = await Promise.all(membersPromises);
+            setGroupMembers(members);
           } else {
             console.error(`Group ${groupName} does not exist`);
           }
@@ -47,7 +50,6 @@ const Tasks = () => {
     };
        
     fetchGroupMembers();
-    console.log("Group Members:", groupMembers);
 
     const fetchTasks = async () => {
       if (groupName) {
@@ -64,6 +66,9 @@ const Tasks = () => {
         }, {});
 
         // Reorder tasks array to display tasks assigned to the current user first
+        if (currentUserId && assignee){
+
+        
         const currentUserTasks = groupedTasks[currentUserId];
         const otherTasks = Object.entries(groupedTasks)
           .filter(([assigneeId]) => assigneeId !== currentUserId)
@@ -80,9 +85,20 @@ const Tasks = () => {
 
         setTasks(updatedTasksWithName);
       }
+      }
     };
     fetchTasks();
 
+    if (groupName){
+        const unsubscribe = onSnapshot(collection(FIREBASE_DB, "groups", groupName, "tasks"), (snapshot) => {
+          fetchTasks(); // Update tasks when there are changes
+        });
+      
+
+      return () => {
+        unsubscribe();
+      };
+    }
   }, [groupName]);
 
   const addTask = async () => {
@@ -95,6 +111,7 @@ const Tasks = () => {
         completed: false,
         setTime: time || null,
       });
+
       setModalVisible(false);
       setTaskContent("");
       setAssignee("");
@@ -112,7 +129,7 @@ const Tasks = () => {
         renderItem={({ item }) => (
           <View style={{ borderBottomWidth: 1, padding: 10 }}>
             <Text style={{ fontWeight: 'bold' }}>{item.assignee}</Text>
-            {item.tasks.map((task, index) => (
+            {item.tasks.map((task, index: number) => (
               <Text key={index}>
                 - {task.content} {task.setTime && `at ${task.setTime}`}
               </Text>
@@ -138,14 +155,13 @@ const Tasks = () => {
               onChangeText={setTaskContent}
             />
             <View>
-              <Picker
-                      selectedValue={selectedLanguage}
-                      onValueChange={(itemValue, itemIndex) =>
-                        setSelectedLanguage(itemValue)
-                      }>
-                      <Picker.Item label="Java" value="java" />
-                      <Picker.Item label="JavaScript" value="js" />
-              </Picker>
+            <ModalDropdown
+              options={groupMembers.map(member => member.name)} // Use names of group members as options
+              defaultValue="Select a member" // Default text shown before selection
+              style={styles.dropdown} // Styling for the dropdown
+              dropdownStyle={styles.dropdownOptions} // Styling for the dropdown options
+              onSelect={(index: string, option: string) => setAssignee(groupMembers[parseInt(index, 10)].uuid)}
+              />
             </View>
             <TextInput
               style={styles.input}
@@ -153,7 +169,10 @@ const Tasks = () => {
               value={time}
               onChangeText={setTime}
             />
-            <Button title="Add Task" onPress={addTask} />
+            <View style={{flexDirection: 'row', justifyContent: 'space-between'}}>
+              <Button title="Cancel" onPress={() => setModalVisible(false)} />
+              <Button title="Add Task" onPress={addTask} />
+            </View>
           </View>
         </View>
       </Modal>
@@ -189,6 +208,18 @@ const styles = StyleSheet.create({
     margin: 12,
     borderWidth: 1,
     padding: 10,
+    borderRadius: 10
+  },
+  dropdown: {
+    width: 200,
+    margin: 12,
+    borderWidth: 1,
+    padding: 10,
+    borderRadius: 10
+  },
+  dropdownOptions: {
+    marginTop: 2,
+    width: 200,
     borderRadius: 10
   }
 });

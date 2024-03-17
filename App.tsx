@@ -10,6 +10,7 @@ import Roommates from "./screens/Roommates";
 import Profile from './screens/Profile';
 import Group from './screens/Group';
 import Messaging from "./screens/Messaging";
+
 const Stack = createNativeStackNavigator();
 
 const InsideStack = createNativeStackNavigator();

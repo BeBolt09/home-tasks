@@ -3,9 +3,6 @@ import React,{useState} from 'react'
 import { FIREBASE_AUTH } from '../FirebaseConfig';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { useEffect } from 'react';
-import { useFonts } from 'expo-font';
-import * as SplashScreen from 'expo-splash-screen';
-
 const Login = () => {
 
   const [login,setLogin] = useState(true);
