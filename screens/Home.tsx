@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Text, Image, Animated, StyleSheet } from 'react
 import { NavigationProp } from '@react-navigation/native';
 import { FIREBASE_AUTH } from '../FirebaseConfig';
 import Tasks from '../Components/Tasks';
+import TestTasks from '../Components/TestTasks';
 
 interface RouterProps {
   navigation: NavigationProp<any, any>;
@@ -44,7 +45,8 @@ export default function Home({ navigation }: RouterProps) {
       </TouchableOpacity>
 
       <Image source={roomatesLogo} style={{ height: 100, width: 250, top: -20, alignSelf: 'center' }} />
-      <Tasks/>
+      {/* <Tasks/> */}
+      <TestTasks/>
       <Animated.View style={[styles.dropdownContainer, { left: slideAnimation }]}>
         <TouchableOpacity onPress={() => navigation.navigate('Roommates')}>
           <Text style={styles.dropdownItem}>Roommates</Text>
